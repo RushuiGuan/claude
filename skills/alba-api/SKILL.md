@@ -173,10 +173,38 @@ Copy from `templates/serilog.json` in this skill folder, replacing `{{ProjectNam
 
 ---
 
-### `Controllers/TestController.cs` (starter controller)
+### `Requests/TestRequest.cs` (sample request with validation)
 
 ```csharp
+using Albatross.Input;
+using FluentValidation;
+
+namespace {{RootNamespace}}.Requests;
+
+public class TestRequestValidator : AbstractValidator<TestRequest>, ICached<TestRequestValidator> {
+	public TestRequestValidator() {
+		RuleFor(x => x.Name).NotEmpty().MaximumLength(256);
+	}
+}
+
+public record class TestRequest : IRequest<TestRequest> {
+	public required string Name { get; init; }
+
+	public TestRequest Sanitize() {
+		return this with { Name = Name.Trim() };
+	}
+
+	public static AbstractValidator<TestRequest> Validator => ICached<TestRequestValidator>.Instance;
+}
+```
+
+### `Controllers/TestController.cs` (starter controller with GET and POST)
+
+```csharp
+using Albatross.Hosting;
+using Albatross.Input;
 using Microsoft.AspNetCore.Mvc;
+using {{RootNamespace}}.Requests;
 
 namespace {{RootNamespace}}.Controllers;
 
@@ -185,10 +213,132 @@ namespace {{RootNamespace}}.Controllers;
 public class TestController : ControllerBase {
 	[HttpGet]
 	public string Get() => "ok";
+
+	[HttpPost]
+	public async Task<ActionResult> Post([FromBody] TestRequest request, CancellationToken cancellationToken) {
+		if (request.Validate(out var sanitized).HasProblem(out var problem)) {
+			return BadRequest(problem);
+		}
+		// use sanitized here
+		return Ok();
+	}
 }
 ```
 
-This is a minimal health-check style controller. The user can rename or replace it.
+These are starter files to demonstrate the patterns. The user should rename or replace them with real domain types.
+
+---
+
+## Controller coding rules
+
+Apply these rules whenever scaffolding or adding any controller action:
+
+**Never return a database entity from an endpoint.** Always return a DTO. If no DTO exists for the entity, create one before writing the controller action.
+
+Where to place the DTO:
+- Look for a sibling project named `{AppName}.Core` (e.g. `Sample.Core` for `Sample.WebApi`)
+- If a `Dtos/` folder exists inside that project, place the DTO there
+- If the project exists but has no `Dtos/` folder, place the DTO in its root
+- Name the DTO after the entity with a `Dto` suffix (e.g. `Company` → `CompanyDto`)
+
+```csharp
+// Sample.Core/Dtos/CompanyDto.cs
+namespace Sample.Core.Dtos;
+
+public record class CompanyDto {
+    public required int Id { get; init; }
+    public required string Name { get; init; }
+}
+```
+
+The entity is responsible for creating its own DTO. Add a method on the entity class that returns the DTO:
+
+```csharp
+// On the entity
+public CompanyDto CreateDto() => new CompanyDto { Id = Id, Name = Name };
+```
+
+The controller calls `CreateDto()` — it does not construct the DTO itself:
+
+```csharp
+// In the controller
+var company = await companyRepository.GetById(id, cancellationToken);
+return company.CreateDto();
+```
+
+
+**Always add `CancellationToken cancellationToken` as the last parameter on every async action.** ASP.NET Core binds it automatically from the request — no attribute needed. Do not add it to synchronous methods. If a method needs `CancellationToken`, it must also be `async Task<T>`.
+
+```csharp
+// correct
+[HttpGet("{id}")]
+public async Task<MyDto> GetById(Guid id, CancellationToken cancellationToken) { ... }
+
+[HttpPost]
+public async Task<ActionResult<MyDto>> Create(MyDto dto, CancellationToken cancellationToken) { ... }
+
+// wrong — missing cancellationToken
+[HttpGet("{id}")]
+public async Task<MyDto> GetById(Guid id) { ... }
+```
+
+Pass `cancellationToken` through to every downstream async call (repository, service, `SaveChangesAsync`, etc.) so the entire call chain respects request cancellation.
+
+---
+
+## HTTP POST request validation (request validation pattern)
+
+Every POST action must validate and sanitize its request body using `Albatross.Input` before doing any work. The pattern has two parts:
+
+### 1. Request class (in the Core/shared project)
+
+Implement `IRequest<T>` on a `record class`. The request is responsible for its own sanitization and exposes a cached validator. The validator and the request DTO always live in the **same file**, named after the request DTO class (e.g. `CreateCompanyRequest.cs`):
+
+```csharp
+using Albatross.Input;
+using FluentValidation;
+
+public class MyRequestValidator : AbstractValidator<MyRequest>, ICached<MyRequestValidator> {
+    public MyRequestValidator() {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(256);
+        // add rules as needed
+    }
+}
+
+public record class MyRequest : IRequest<MyRequest> {
+    public required string Name { get; init; }
+
+    public MyRequest Sanitize() {
+        return this with { Name = Name.Trim() };
+        // apply any normalization/trimming here
+    }
+
+    public static AbstractValidator<MyRequest> Validator => ICached<MyRequestValidator>.Instance;
+}
+```
+
+### 2. Controller POST action
+
+Call `.Validate(out var sanitized).HasProblem(out var problem)` and return `BadRequest(problem)` if validation fails. Use the sanitized value for all further work.
+
+`HasProblem` is an extension method in `Albatross.Hosting` — always include `using Albatross.Hosting;` in the controller file:
+
+```csharp
+using Albatross.Hosting;   // required for HasProblem extension method
+using Albatross.Input;
+using Microsoft.AspNetCore.Mvc;
+
+[HttpPost]
+public async Task<ActionResult> Post([FromBody] MyRequest request, CancellationToken cancellationToken) {
+    if (request.Validate(out var sanitized).HasProblem(out var problem)) {
+        return BadRequest(problem);
+    }
+    // use sanitized, not request
+    return Ok();
+}
+```
+
+Never skip validation on POST actions. Never use the original `request` after calling `Validate` — always use `sanitized`.
 
 ---
 
@@ -243,14 +393,29 @@ public class SecureController : ControllerBase { ... }
 - **Global exception handler** — `ArgumentException` → 400, all others → 500, RFC 7807 ProblemDetails
 - **Response compression** — Gzip + Brotli
 - **Plain text input formatter** — handles `text/plain` request bodies
-- **Request logging** — logs every request with username, IP, URL, method to `SourceContext = "usage"`
 
 To disable any of these, override the property in `Startup.cs`:
 
 ```csharp
 public override bool OpenApi => false;
-public override bool LogUsage => false;
 ```
+
+## Request logging
+
+The base `Startup` class does **not** include request logging. Use `Serilog.AspNetCore`'s `UseSerilogRequestLogging()` middleware by overriding `Configure` in your `Startup`:
+
+```csharp
+public class Startup : Albatross.Hosting.Startup {
+	public Startup(IConfiguration configuration) : base(configuration) { }
+
+	public override void Configure(IApplicationBuilder app, ProgramSetting programSetting, EnvironmentSetting environmentSetting, ILogger<Startup> logger) {
+		app.UseSerilogRequestLogging();
+		base.Configure(app, programSetting, environmentSetting, logger);
+	}
+}
+```
+
+Call `UseSerilogRequestLogging()` **before** `base.Configure(...)` so it wraps the full request pipeline. Serilog writes one structured log entry per request including method, path, status code, and elapsed time.
 
 ---
 
@@ -280,3 +445,4 @@ See the `alba-efcore` skill for the full data access layer pattern (entities, re
 - [ ] `appsettings.json` has `"useKerberos": false` (unless user asked for Kerberos)
 - [ ] `Program.cs` calls `RemoveLegacySlackSinkOptions()` before `Setup`
 - [ ] `Startup.cs` inherits `Albatross.Hosting.Startup` and passes `IConfiguration` to base
+- [ ] No endpoint returns a database entity — all return DTOs from the Core project

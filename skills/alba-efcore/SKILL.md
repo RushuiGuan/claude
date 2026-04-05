@@ -68,17 +68,19 @@ public class CompanyEntityMap : EntityMap<Company> {
 
 ## 2. DbSession
 
-Define a session interface and class per module/bounded context.
+Define a session interface and class per module/bounded context. Place the DbSession classes in the **same namespace as the entity models** — not in a separate `Data` or `Infrastructure` namespace. This keeps the data access layer cohesive and avoids unnecessary namespace ceremony when working with entities.
 
 ```csharp
-public interface ICrmDbSession : IDbSession { }
+namespace MyApp.Models {
+    public interface ICrmDbSession : IDbSession { }
 
-public class CrmDbSession : DbSession, ICrmDbSession {
-    public CrmDbSession(DbContextOptions option) : base(option) { }
+    public class CrmDbSession : DbSession, ICrmDbSession {
+        public CrmDbSession(DbContextOptions option) : base(option) { }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) {
-        modelBuilder.HasDefaultSchema(Constants.Schema);
-        modelBuilder.BuildEntityModels(); // auto-registers all EntityMap classes in the assembly
+        protected override void OnModelCreating(ModelBuilder modelBuilder) {
+            modelBuilder.HasDefaultSchema(Constants.Schema);
+            modelBuilder.BuildEntityModels(); // auto-registers all EntityMap classes in the assembly
+        }
     }
 }
 ```
@@ -438,7 +440,9 @@ If `--pre` is passed, the scripts are only executed when there are pending EF mo
 When adding a new entity/feature, follow this order:
 
 1. **Entity class + EntityMap** — define properties, key, indexes, relationships
-2. **Repository interface + class** — query methods with eager loads; throw `NotFoundException<T>` on key lookups
+2. **Repository interface + class** — query methods with eager loads
+   - Key lookups (`GetById`, `GetByKey`): always throw `NotFoundException<T>` — never return `null`
+   - Non-key lookups (e.g. `GetByName`): nullable return is acceptable
 3. **Service interface + class** — business logic; returns entities; no SaveChanges calls
 4. **DI registration** — add to the module extension method
 5. **Application boundary** — controller/handler calls SaveChangesAsync and handles `SaveResults`
