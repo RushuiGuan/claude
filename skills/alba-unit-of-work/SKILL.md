@@ -110,7 +110,7 @@ public record class CompanyDto {
 public CompanyDto CreateDto() => new CompanyDto { Id = Id, Name = Name };
 ```
 
-The controller calls `entity.CreateDto()`
+The controller calls `entity.CreateDto()` — it never constructs the DTO itself.
 
 ---
 
