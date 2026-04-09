@@ -6,8 +6,8 @@ description: >
   validation, creating a request class, implementing IRequest&lt;T&gt;, IValidateString&lt;T&gt;, ICached&lt;T&gt;,
   or Optional&lt;T&gt; in an Albatross-based project. Trigger on requests like "add a new request",
   "validate this input", "create a request class", "add validation to this endpoint",
-  "I need a validated string type", or anything involving input sanitization or validation
-  patterns. Always use this skill before writing any request or string-validator classes.
+  "I need a validated string type", or anything involving input validation patterns. Always
+  use this skill before writing any request or string-validator classes.
 ---
 
 # Albatross.Input Patterns
@@ -29,22 +29,24 @@ Pre-release versions are fine.
 ## Pattern 1: Request Validation Pattern
 
 Use this pattern for any incoming request object — HTTP POST/PUT bodies, command payloads, or
-anything that needs to be sanitized and validated before use.
+anything that needs to be validated before use.
 
 ### The contract
 
-`IRequest<T>` requires two things from the implementing class:
+`IRequest<T>` requires one thing from the implementing class:
 
 ```csharp
 public interface IRequest<T> where T : class, IRequest<T> {
-    T Sanitize();
     static abstract AbstractValidator<T> Validator { get; }
 }
 ```
 
-- `Sanitize()` — normalizes the input (trim strings, canonicalize values) and returns a new
-  instance. Sanitization runs **before** validation so rules run on clean data.
 - `Validator` — a static property returning the FluentValidation validator for this type.
+
+Input normalization (trimming strings, canonicalizing values) is intentionally not part of
+the interface. Sanitization is only needed in specific situations, and requiring it on every
+request class adds unnecessary ceremony. If a request does need normalization, do it explicitly
+before calling `Validate` rather than as a mandated contract step.
 
 ### ICached<T> — singleton validator
 
@@ -79,10 +81,6 @@ public record class CreateOrderRequest : IRequest<CreateOrderRequest> {
     public required string Name { get; init; }
     public required int Quantity { get; init; }
 
-    public CreateOrderRequest Sanitize() {
-        return this with { Name = Name.Trim() };
-    }
-
     public static AbstractValidator<CreateOrderRequest> Validator
         => ICached<CreateOrderRequestValidator>.Instance;
 }
@@ -90,14 +88,11 @@ public record class CreateOrderRequest : IRequest<CreateOrderRequest> {
 
 ### Validating
 
-The `Validate` extension method sanitizes and validates in one call:
+The `Validate` extension method runs the validator and returns a `ValidationResult`:
 
 ```csharp
-var result = request.Validate(out var sanitized);
+var result = request.Validate();
 ```
-
-`sanitized` is the sanitized copy. Always use `sanitized` downstream — never use the original
-`request` after calling `Validate`.
 
 In ASP.NET Core controllers, `HasProblem` from `Albatross.Hosting` converts the result into an
 RFC 7807 problem response:
@@ -105,10 +100,9 @@ RFC 7807 problem response:
 ```csharp
 using Albatross.Hosting;   // for HasProblem
 
-if (request.Validate(out var sanitized).HasProblem(out var problem)) {
+if (request.Validate().HasProblem(out var problem)) {
     return BadRequest(problem);
 }
-// use sanitized from here
 ```
 
 `HasProblem` is defined in `Albatross.Hosting`, not `Albatross.Input` — it is the bridge
