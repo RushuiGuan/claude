@@ -340,13 +340,24 @@ Only create migration context classes for the providers the application supports
 
 ### Verbs.cs — wire commands to providers
 
+**Single provider** — use flat verb names directly; no parent group needed:
+
+```csharp
+// SQL Server only — flat commands, no parent prefix
+[assembly: Verb<EFMigrationParams, EFMigrate<CrmSqlServerMigration>>("ef-migrate", Description = "Apply pending EF migrations to SQL Server")]
+[assembly: Verb<GenerateSqlScriptParams, GenerateSqlScript<CrmSqlServerMigration>>("create-script", Description = "Generate SQL creation script")]
+[assembly: Verb<ExecuteDeploymentScriptsParams, ExecuteDeploymentScripts<CrmSqlServerMigration>>("exec-script", Description = "Execute deployment scripts")]
+```
+
+**Multiple providers** — prefix each verb with the provider group name so users can target the right DB:
+
 ```csharp
 // PostgreSQL commands
 [assembly: Verb<EFMigrationParams, EFMigrate<CrmPostgresMigration>>("postgres ef-migrate", Description = "Apply pending EF migrations to PostgreSQL")]
 [assembly: Verb<GenerateSqlScriptParams, GenerateSqlScript<CrmPostgresMigration>>("postgres create-script", Description = "Generate SQL script for PostgreSQL")]
 [assembly: Verb<ExecuteDeploymentScriptsParams, ExecuteDeploymentScripts<CrmPostgresMigration>>("postgres exec-script", Description = "Execute PostgreSQL deployment scripts")]
 
-// SQL Server commands (omit if app is PostgreSQL-only)
+// SQL Server commands
 [assembly: Verb<EFMigrationParams, EFMigrate<CrmSqlServerMigration>>("sqlserver ef-migrate", Description = "Apply pending EF migrations to SQL Server")]
 [assembly: Verb<GenerateSqlScriptParams, GenerateSqlScript<CrmSqlServerMigration>>("sqlserver create-script", Description = "Generate SQL script for SQL Server")]
 [assembly: Verb<ExecuteDeploymentScriptsParams, ExecuteDeploymentScripts<CrmSqlServerMigration>>("sqlserver exec-script", Description = "Execute SQL Server deployment scripts")]
@@ -354,7 +365,10 @@ Only create migration context classes for the providers the application supports
 
 ### ParentParams.cs — command group with aliases
 
+Only create `ParentParams.cs` when the admin project supports **multiple** database providers. Skip this file entirely for a single-provider project — flat verb names make it unnecessary.
+
 ```csharp
+// Only needed when multiple providers are present
 [Verb("sqlserver", Alias = ["sql"], Description = "SQL Server commands")]
 [Verb("postgres",  Alias = ["pg"],  Description = "PostgreSQL commands")]
 public class ParentParams { }
@@ -371,11 +385,11 @@ Add `Microsoft.EntityFrameworkCore.Design` to the Admin project so the `dotnet e
 </PackageReference>
 ```
 
-### Program.cs — conditional DI based on command prefix
-
-Register the correct DB provider and `IExecuteScriptFile` implementation based on which command group is invoked.
+### Program.cs — DI registration
 
 **Critical:** `Program.cs` must use a regular class with `Main` inside the project's namespace — **not** top-level statements. The `Albatross.CommandLine` source generator emits `CodeGenExtensions` into the global namespace when top-level statements are used, which collides with the copy already baked into `Albatross.EFCore.Admin.dll`. Using a named namespace scopes the generated class correctly and avoids the conflict.
+
+**Single provider** — register the provider's services unconditionally; no command-key branching needed:
 
 ```csharp
 namespace MyApp.Admin {
@@ -386,20 +400,38 @@ namespace MyApp.Admin {
                 .AddCommands()
                 .Parse(args)
                 .WithConfig()
-                .ConfigureHost(builder => {
-                    builder.UseSerilog();
-                    builder.ConfigureLogging((context, logging) => {
-                        var setupSerilog = new SetupSerilog();
-                        setupSerilog.UseConfigFile(EnvironmentSetting.DOTNET_ENVIRONMENT.Value, null, null, true);
-                        setupSerilog.Create();
-                    });
-                })
                 .Build();
             return await host.InvokeAsync();
         }
 
         static void RegisterServices(ParseResult result, IServiceCollection services) {
-            services.AddCrmDbSession();  // registers ICrmDbSession, repositories, services
+            services.AddCrmDbSession();
+            services.AddSingleton<IExecuteScriptFile, ExecuteSqlServerScriptFile>(); // handles GO batches
+            services.AddScoped(p => new CrmSqlServerMigration(p.GetRequiredService<ICrmConfig>().ConnectionString));
+            services.AddSqlServerWithContextPool<CrmDbSession>(p => p.GetRequiredService<ICrmConfig>().ConnectionString);
+            services.RegisterCommands();
+        }
+    }
+}
+```
+
+**Multiple providers** — branch on the command key prefix to register the matching provider:
+
+```csharp
+namespace MyApp.Admin {
+    internal class Program {
+        static async Task<int> Main(string[] args) {
+            await using var host = new CommandHost("MyApp Admin")
+                .RegisterServices(RegisterServices)
+                .AddCommands()
+                .Parse(args)
+                .WithConfig()
+                .Build();
+            return await host.InvokeAsync();
+        }
+
+        static void RegisterServices(ParseResult result, IServiceCollection services) {
+            services.AddCrmDbSession();
             var key = result.CommandResult.Command.GetCommandKey();
             if (key.StartsWith("sqlserver")) {
                 services.AddConfig<ICrmConfig, Crm.Models.SqlServer.CrmConfig>();
