@@ -2,7 +2,7 @@
 name: alba-task
 description: >
   How to create and manage task files in this project. Each task lives in its own
-  file under the `task-mgmt/` folder at the project root, named `[task-name].tsk.md`.
+  file under the `project-mgmt/` folder at the project root, named `[task-name].tsk.md`.
   Task files document the objective, reasoning, decisions, and conclusion — not a
   running process log, but a concise record of *why* something was done and *what*
   the outcome was. Use this skill whenever the user asks to create a task, add a task,
@@ -16,7 +16,7 @@ description: >
 
 # Alba Task Management
 
-Tasks live in `task-mgmt/` at the project root. Each task is its own file named
+Tasks live in `project-mgmt/` at the project root. Each task is its own file named
 `[task-name].tsk.md` using kebab-case (e.g., `audit-entity-fields.tsk.md`).
 
 ## File format
@@ -51,13 +51,30 @@ What was actually done and what the result was. Written after the work is comple
 - `status` progresses: `new` → `started` → `completed` (or `cancelled`).
 - Leave **Conclusion** empty (or omit it) until the task is done.
 
+## Project context
+
+Before creating or updating a task, check whether `project-mgmt/project.md` exists
+and read it if it does. The project file captures the business requirements, technical
+design, and key design decisions that span all tasks. Use it to:
+
+- Ground the task's **Objective** in the business purpose rather than just the
+  technical steps.
+- Ensure the task's **Reasoning** is consistent with architectural decisions already
+  recorded in the project file.
+- Avoid duplicating project-wide context in the task — link to the relevant decision
+  instead of restating it.
+
+If a task-level decision turns out to have project-wide implications, note it in the
+task's **Reasoning** and suggest adding it to `project.md` as a **Key Design Decision**.
+
 ## Creating a task
 
-1. Choose a descriptive kebab-case name: `[task-name].tsk.md`
-2. Place it in `task-mgmt/` at the project root.
-3. Set `status: new`, `created: <now>`, `priority: normal` unless specified otherwise.
-4. Fill in **Objective** and **Reasoning** with what's known at creation time.
-5. Leave **Conclusion** blank — fill it in when the work is complete.
+1. Read `project-mgmt/project.md` if it exists, to understand the project context.
+2. Choose a descriptive kebab-case name: `[task-name].tsk.md`
+3. Place it in `project-mgmt/` at the project root.
+4. Set `status: new`, `created: <now>`, `priority: normal` unless specified otherwise.
+5. Fill in **Objective** and **Reasoning** with what's known at creation time.
+6. Leave **Conclusion** blank — fill it in when the work is complete.
 
 **Example:**
 
@@ -103,7 +120,7 @@ When status changes or the conclusion is ready:
 
 When asked to see tasks (e.g., "what's open?", "show high priority tasks"):
 
-1. Use Glob to find all `task-mgmt/*.tsk.md` files.
+1. Use Glob to find all `project-mgmt/*.tsk.md` files.
 2. Read each and extract status, priority, and the first line of the Objective.
 3. Present results grouped by status or priority as asked.
 
