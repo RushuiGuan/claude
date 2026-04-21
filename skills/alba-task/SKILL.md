@@ -64,8 +64,20 @@ design, and key design decisions that span all tasks. Use it to:
 - Avoid duplicating project-wide context in the task — link to the relevant decision
   instead of restating it.
 
-If a task-level decision turns out to have project-wide implications, note it in the
-task's **Reasoning** and suggest adding it to `project.md` as a **Key Design Decision**.
+While working on a task, stay alert for project-level context that surfaces — new
+requirements the user mentions, architectural choices that get made, constraints that
+emerge, or open questions that get resolved. When this happens, update `project.md`
+immediately rather than waiting until the task is complete:
+
+- New business requirement → add to **Business Requirements**
+- Architectural or design choice → add to **Key Design Decisions**
+- Emerging constraint → add to **Dependencies & Constraints**
+- Resolved uncertainty → remove from **Open Questions** (or record the answer in
+  **Key Design Decisions** if the resolution was non-obvious)
+
+Update `updated` in the metadata block each time. Don't ask the user whether to update
+it — just do it as part of the work. The project file should reflect the current
+understanding of the project at all times.
 
 ## Creating a task
 
