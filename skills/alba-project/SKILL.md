@@ -169,7 +169,7 @@ current approach:
 
 The project file and task files serve different purposes and should stay in sync conceptually but never duplicate each other:
 
-| project.md | task files (`task-mgmt/*.tsk.md`) |
+| project.md | task files (`project-mgmt/*.tsk.md`) |
 |---|---|
 | Why the project exists | What a specific piece of work accomplishes |
 | Architectural and design choices | Task-level reasoning and decisions |
