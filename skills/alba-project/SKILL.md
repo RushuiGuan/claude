@@ -167,7 +167,7 @@ current approach:
 
 ## Relationship to tasks
 
-The project file and task files serve different purposes and should stay in sync conceptually but never duplicate each other:
+The project file and task files serve different purposes and should never duplicate each other:
 
 | project.md | task files (`project-mgmt/*.tsk.md`) |
 |---|---|
@@ -176,6 +176,20 @@ The project file and task files serve different purposes and should stay in sync
 | Business requirements | Task objective |
 | Spans the whole project | Scoped to one work item |
 
-When a task-level decision has project-wide implications (e.g., choosing a library,
-settling on a data model pattern), record it in the project file's **Key Design Decisions**
-section in addition to the task's **Reasoning** section.
+### Task planning as a source of project-level decisions
+
+Task creation (especially the discovery phase) often surfaces design context that belongs
+here rather than in the task file. When that happens, write it to `project.md` first,
+then have the task's Reasoning reference it rather than restate it.
+
+Escalate from task to project when a finding:
+- Applies to more than one service, model, or controller
+- States a convention or rule that should govern future work in the area
+- Describes an architectural boundary ("controllers own the transaction, not services")
+- Is something any developer touching adjacent code would need to know upfront
+
+The task's Reasoning should then read:
+> Follows the project convention recorded in project.md: [one-line summary].
+
+This keeps `project.md` as the authoritative source and the task as an instance of
+applying the pattern — not a parallel copy of the same information.
