@@ -1,5 +1,5 @@
 ---
-name: alba-csharp-doc
+name: csharp-doc
 description: >
   Generates XML triple-slash (///) documentation comments for C# projects following
   the Albatross convention: meaningful comments only, never parroting the symbol name.

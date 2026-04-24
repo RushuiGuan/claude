@@ -1,5 +1,5 @@
 ---
-name: alba-nuget-readme
+name: nuget-readme
 description: >
   Generates a README.md for an Albatross NuGet package following the established template:
   summary, Key Features, Quick Start with code sample, Dependencies, Prerequisites, and

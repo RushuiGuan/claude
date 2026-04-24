@@ -1,5 +1,5 @@
 ---
-name: alba-task
+name: task-mgmt
 description: >
   How to create and manage task files in this project. Each task lives in its own
   file under the `project-mgmt/` folder at the project root, named `[task-name].tsk.md`.

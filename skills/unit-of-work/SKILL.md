@@ -1,5 +1,5 @@
 ---
-name: alba-unit-of-work
+name: unit-of-work
 description: >
   How to implement the Unit of Work pattern in ASP.NET Core Web API using Albatross.EFCore,
   Albatross.Hosting.EFCore, Albatross.Input, and Albatross.Hosting together. The controller

@@ -1,5 +1,5 @@
 ---
-name: alba-unit-test
+name: csharp-unit-test
 description: >
   How to write xUnit v3 unit tests in this codebase following the established conventions:
   one file per method under test, named ClassName.MethodName.cs; test methods named after
@@ -10,7 +10,7 @@ description: >
   method", "add unit tests", "cover this with tests", or anything involving xunit test creation.
 ---
 
-# Alba Unit Test Conventions
+# C# Unit Test Conventions
 
 ## File layout
 
@@ -202,6 +202,57 @@ Use `Xunit.Assert`. Prefer specific assertions over booleans:
 
 `FluentAssertions` is also available if you prefer a more readable chain style
 (`result.Should().Be(expected)`), but keep assertions consistent within a file.
+
+---
+
+## Testing internal methods
+
+Some methods are `internal` rather than `public` — they are implementation details that
+shouldn't be part of the public interface, but still need direct test coverage. C# supports
+this via `InternalsVisibleTo`.
+
+### Step 1 — expose internals to the test project
+
+In the project being tested (e.g. `Anchor`), add an `AssemblyInfo.cs` file if one doesn't
+exist, and declare the attribute:
+
+```csharp
+// Anchor/AssemblyInfo.cs
+using System.Runtime.CompilerServices;
+[assembly: InternalsVisibleTo("Anchor.Test")]
+```
+
+Check whether the file already exists before creating it. If `InternalsVisibleTo` is
+already declared, skip this step.
+
+### Step 2 — instantiate the concrete class, not the interface
+
+Internal methods are not on the interface, so the test must hold a reference to the
+**concrete class** directly:
+
+```csharp
+public class ProviderAuthService_ValidateCallbackRequest {
+    private readonly Mock<IAnchorRepository> repositoryMock = new();
+    // ... other mocks ...
+    private readonly ProviderAuthService sut;  // concrete type, not IProviderAuthService
+
+    public ProviderAuthService_ValidateCallbackRequest() {
+        sut = new ProviderAuthService(
+            repositoryMock.Object,
+            /* other dependencies */);
+    }
+
+    [Fact]
+    public async Task ExpiredRequest_ThrowsException() {
+        // arrange via repositoryMock ...
+        await Assert.ThrowsAsync<InvalidAuthorizationRequestRequestException>(
+            () => sut.ValidateCallbackRequest(request, CancellationToken.None));
+    }
+}
+```
+
+The rest of the conventions (one file per method, scenario-named test methods,
+`Theory`/`InlineData`, Moq setup) apply exactly as for public methods.
 
 ---
 

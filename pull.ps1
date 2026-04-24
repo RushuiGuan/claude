@@ -1,1 +1,1 @@
-Copy-Item ~/.claude/skills/alba-* $PSScriptRoot/skills -recurse -Force
+Copy-Item ~/.claude/skills/* $PSScriptRoot/skills -recurse -Force

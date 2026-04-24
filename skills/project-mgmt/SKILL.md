@@ -1,5 +1,5 @@
 ---
-name: alba-project
+name: project-mgmt
 description: >
   How to create and manage the project documentation file for this project.
   A single `project.md` file lives in the `project-mgmt/` folder at the project root.
