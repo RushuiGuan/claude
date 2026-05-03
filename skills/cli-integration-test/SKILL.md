@@ -62,6 +62,10 @@ param(
     [string]$Param2
 )
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$InformationPreference = 'Continue'
+
 BeforeAll {
     # Use a unique ID per run to avoid conflicts between parallel runs or leftover state
     $script:testId = [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -76,18 +80,18 @@ AfterAll {
 Describe "[Feature] Integration Tests" {
     Context "[Scenario group]" {
         It "Should [expected behavior]" {
-            cli-alias command arg1 arg2
+            cli-alias command arg1 arg2 | Tee-Object -Variable output
             $LASTEXITCODE | Should -Be 0
         }
 
         It "Should return expected output" {
-            $output = cli-alias command arg1
+            cli-alias command arg1 | Tee-Object -Variable output
             $LASTEXITCODE | Should -Be 0
             $output | Should -Match "expected pattern"
         }
 
         It "Should fail when [invalid condition]" {
-            cli-alias command --bad-arg
+            cli-alias command --bad-arg | Tee-Object -Variable output
             $LASTEXITCODE | Should -Not -Be 0
         }
     }
@@ -95,10 +99,12 @@ Describe "[Feature] Integration Tests" {
 ```
 
 Key points:
+- Always use `#!/usr/bin/env pwsh` (not `powershell`) as the shebang — `pwsh` is the cross-platform PowerShell Core executable
+- Always include `Set-StrictMode -Version Latest`, `$ErrorActionPreference = 'Stop'`, and `$InformationPreference = 'Continue'` at the top of every test file — these catch undefined variables, turn errors into exceptions, and surface `Write-Information` output
 - Use `$script:` for any variable shared between `BeforeAll` and `It` blocks
 - Append the unique `$script:testId` to resource names (keys, providers, databases) to avoid state leaking between runs
+- Always make CLI output visible in the test output — use `Tee-Object -Variable output`, `Write-Host`, or any equivalent approach; visible output is essential for diagnosing failures without re-running the test
 - Check `$LASTEXITCODE` after every CLI call — it is the primary pass/fail signal
-- Capture output with `$output = cli-alias command` when content needs asserting
 - `AfterAll` is project-specific — it must undo exactly what the test created
 
 ---
