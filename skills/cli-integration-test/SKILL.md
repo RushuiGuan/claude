@@ -14,10 +14,11 @@ description: >
 
 # CLI Integration Tests with Pester and a Provided CLI Program
 
-Integration tests live in `[project-root]/integration-tests/`. Two file types per feature:
+Integration tests live in `[project-root]/integration-tests/`. Two file types per feature, plus a shared requirements document:
 
 ```
 integration-tests/
+├── requirements.md             # Prerequisites for running the tests — keep this current
 ├── test-[feature].ps1          # Pester test definitions — parameterized, invoked by Pester
 └── run-[feature]-[param].ps1   # Runner — bootstraps Pester and invokes the test file
 ```
@@ -204,3 +205,42 @@ AfterAll {
 ```
 
 Check your project's CLI source for how it reads the config root — it is usually an environment variable with a project-specific prefix.
+
+---
+
+## requirements.md
+
+Maintain a `requirements.md` file in the `integration-tests/` directory. This file tells someone starting from scratch exactly what must be in place before any test can run. It is not a setup guide — it is a checklist of prerequisites.
+
+**Create or update `requirements.md` whenever:**
+- You add a new test that depends on something not yet listed
+- You discover a prerequisite while writing or debugging a test
+- A prerequisite changes (e.g., a different environment variable, a renamed entity)
+
+**What to include:**
+
+```markdown
+# Integration Test Prerequisites
+
+## Services
+- List any services that must be running (e.g., "Anchor API must be running on localhost:5000")
+
+## Database / seed data
+- List any entities or records that must exist before the tests run
+  (e.g., "A LoginProvider named 'google' must already exist")
+- Note if tests create their own data or rely on shared fixtures
+
+## Environment variables
+- List every environment variable the tests read, with a description of what it should contain
+  (e.g., `anchorAdmin__configRoot` — path to the CLI config directory)
+
+## CLI tools
+- List any CLI aliases or executables required (e.g., "`admin` alias must be set via alias.ps1")
+
+## Other
+- Any other setup not covered above (certificates, port forwarding, network access, etc.)
+```
+
+Keep entries specific: name the exact variable, exact service, exact entity. Vague entries like "database must be configured" are not useful — "SQL Server must be running at localhost:1433 with database Anchor" is.
+
+If a test file's `BeforeAll` handles a prerequisite automatically (e.g., creates a temp config root, sets an env var), you do not need to list it in `requirements.md` — only list things the test runner must arrange *before* invoking the test.
