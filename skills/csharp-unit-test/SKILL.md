@@ -29,6 +29,24 @@ appropriate test project alongside the other test files.
 
 ---
 
+## Deriving the test spec
+
+**Read the contract first — not the implementation.**
+
+The spec must come from the method's *intent*. Reading the implementation first contaminates it: every line of code looks intentional, so subtle bugs get encoded as expected behavior and the tests always pass.
+
+Derive expected behavior from:
+
+- **Method name** — the verb carries a contract. `Set` implies idempotent upsert (calling twice must not duplicate). `Create` implies a new entity is always produced. `Get` implies return-or-throw. `Find` / `TryGet` implies nullable return.
+- **Parameter names and types** — a `Guid actorId` means created entities should reference that actor. A `DateTime utcNow` means timestamps should match it. A nullable parameter signals an optional behavior branch worth testing.
+- **Return type** — if the method returns the entity it creates or modifies, every path should return something meaningful. A `void` return shifts focus to side effects.
+- **Interface definition** — describes what callers depend on, independent of any implementation detail.
+- **XML doc comments** — if present, treat them as the authoritative spec.
+
+Only open the implementation file after the test cases are drafted. Use it solely to understand how to set up mocks — not to decide what the assertions should be.
+
+---
+
 ## Test method naming
 
 Name each test method after the **scenario** it covers, not the method it calls. The goal
@@ -260,11 +278,12 @@ The rest of the conventions (one file per method, scenario-named test methods,
 
 When adding tests for `SomeClass.SomeMethod`:
 
-1. Create `SomeClass_SomeMethod.cs` in the test project
-2. Declare `public class SomeClass_SomeMethod { ... }`
-3. If testing a **domain model method**: use AutoFixture to build the object, no mocking needed
-4. If testing a **service method**: declare `Mock<IRepository>` fields, construct the service in the constructor, `Setup` only what the scenario needs
-5. Write one `[Theory]` for valid-input scenarios, one for invalid/exception scenarios
-6. Name each test method after the scenario, not the method under test
-7. Add `[InlineData]` cases for each interesting boundary value
-8. Use `[Fact]` only if the scenario genuinely can't be parameterized
+1. **Before opening the implementation**, read the interface definition, method signature, parameter names, return type, and any XML doc comments. Draft the test cases from that alone.
+2. Create `SomeClass_SomeMethod.cs` in the test project
+3. Declare `public class SomeClass_SomeMethod { ... }`
+4. If testing a **domain model method**: use AutoFixture to build the object, no mocking needed
+5. If testing a **service method**: declare `Mock<IRepository>` fields, construct the service in the constructor, `Setup` only what the scenario needs
+6. Write one `[Theory]` for valid-input scenarios, one for invalid/exception scenarios
+7. Name each test method after the scenario, not the method under test
+8. Add `[InlineData]` cases for each interesting boundary value
+9. Use `[Fact]` only if the scenario genuinely can't be parameterized
