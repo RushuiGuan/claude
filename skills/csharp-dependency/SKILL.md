@@ -1,6 +1,6 @@
 ---
 name: csharp-dependency
-description: Manages dependency.md at the project root — a registry that maps private/internal NuGet packages to their local source code and documentation. Use this skill whenever: (1) you encounter a package reference that might be private or internal; (2) the user asks where to find source code for a NuGet package; (3) the user wants to add, update, or view dependency entries; (4) you need to understand a service, pattern, or type from a private library. Always read dependency.md before navigating an unfamiliar private package.
+description: Navigates private/internal NuGet packages to their local source using dependency.md at the project root. Trigger this skill autonomously — no user prompt needed — whenever: (1) you encounter a package reference in a .csproj or using statement that isn't a well-known public package; (2) you need to read a type, interface, method, or pattern from a private library; (3) you are about to search .nuget/packages/, run dotnet commands to inspect a package, or visit external docs for a package that may be private; (4) the user asks to add or update entries in dependency.md. Always check dependency.md first — it tells you where the source lives locally.
 ---
 
 # C# Dependency Map
@@ -85,3 +85,22 @@ Before recording any Path, Documentation subfolder, or package subfolder:
 - Use **Path** (+ Source from Packages table) to jump to a specific assembly's source
 - Use **Path** alone when you need broader repo context: sibling packages, tests, build files
 - Resolve relative paths against the project root before using them as file system paths
+
+## Instead of these approaches
+
+When you need a type, method, or interface from a private package:
+- Do NOT search `.nuget/packages/`
+- Do NOT use `dotnet list`, `dotnet inspect`, or reflection tools
+- Do NOT navigate NuGet.org or external documentation
+
+Read dependency.md, resolve the path, and read the source directly.
+
+## Resolving a path
+
+1. Take `Path` from the entry (relative to the project root where dependency.md lives)
+2. Append the `Source` column value for the specific package
+3. Use Glob or Read on the result
+
+Example: `Albatross.EFCore` → Path `../efcore` + Source `Albatross.EFCore`
+→ resolve against `C:\app\anchor` → `C:\app\efcore\Albatross.EFCore`
+→ Glob `C:\app\efcore\Albatross.EFCore\**\IRepository.cs`

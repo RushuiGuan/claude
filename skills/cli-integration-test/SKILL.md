@@ -208,6 +208,40 @@ Check your project's CLI source for how it reads the config root — it is usual
 
 ---
 
+## Verify by running the test
+
+After creating or modifying any test file, always run it before declaring the work done. A test that has never been executed may contain syntax errors, reference removed CLI operations, or make wrong assumptions about output format — all of which are silent until you actually run it.
+
+**Find and run the corresponding run script:**
+
+```powershell
+# Locate the runner for the test you just wrote or modified
+# e.g., for test-login-provider.ps1, look for run-login-provider-*.ps1
+pwsh integration-tests/run-[feature]-[param].ps1
+```
+
+If no run script exists yet, invoke Pester directly, passing the required parameters:
+
+```powershell
+Import-Module Pester
+$config = New-PesterConfiguration
+$config.Run.Path = "integration-tests/test-[feature].ps1"
+$config.Run.Parameters = @{ Param1 = "value"; Param2 = "value" }
+$config.Output.Verbosity = "Detailed"
+Invoke-Pester -Configuration $config
+```
+
+**If tests fail:**
+
+1. Read the Pester failure output — it names the failing `It` block and the assertion that failed.
+2. Diagnose whether the failure is a test bug (wrong assertion, stale command name, bad regex) or a real system behavior gap.
+3. Fix the test (or the gap, if you introduced a code change that broke behavior).
+4. Re-run. Repeat until all tests pass.
+
+Do not hand off or summarize the work as complete while any test is red. The goal is a green run, not a written test.
+
+---
+
 ## requirements.md
 
 Maintain a `requirements.md` file in the `integration-tests/` directory. This file tells someone starting from scratch exactly what must be in place before any test can run. It is not a setup guide — it is a checklist of prerequisites.
