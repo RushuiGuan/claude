@@ -86,6 +86,20 @@ Before recording any Path, Documentation subfolder, or package subfolder:
 - Use **Path** alone when you need broader repo context: sibling packages, tests, build files
 - Resolve relative paths against the project root before using them as file system paths
 
+## When a dependency path is missing
+
+If you resolve a path from `dependency.md` and the directory does not exist on disk,
+**do not change the recorded path** — the path is correct for the team; only this
+machine is missing the repo.
+
+Tell the user:
+
+> The source for `<package-id>` is not available at `<resolved-path>`.
+> Clone or download the `<Project Name>` repository to that location and try again.
+
+The recorded path is the canonical team location. Changing it to wherever the user
+happens to have the repo would break the entry for everyone else.
+
 ## Instead of these approaches
 
 When you need a type, method, or interface from a private package:
