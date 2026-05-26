@@ -27,11 +27,23 @@ Calls to things outside your process — HTTP clients, secret stores, IdP valida
 databases via non-EF paths. These can fail in ways you can't control and can't reproduce
 without knowing what was sent.
 
-Log:
-- **Before** the call: the target and key parameters (so you know what was attempted if
-  the process dies mid-call)
-- **On failure**: the exception message and enough context to reproduce (provider name,
-  URI, entity ID)
+**Reads vs. writes are treated differently.**
+
+For **read calls** (fetching data):
+- Skip the pre-call debug log for routine reads where the result is predictable.
+- For **bulk reads** (fetching a collection), log a summary at `LogInformation` *after*
+  the call completes — include the count and key filter parameters. This confirms the
+  operation ran and gives you the scale without per-item noise.
+- Log individual reads at `LogDebug` only when there is genuine uncertainty about what
+  will come back (e.g., a lookup that may return null or an unexpected shape).
+- Always log on failure.
+
+For **write calls** (mutations, submissions, publishes):
+- Log **before** the call with key parameters at `LogDebug` — if the process dies
+  mid-call you need to know what was attempted.
+- Log success at `LogInformation` — a completed write is a meaningful event worth
+  having in the production log.
+- Always log on failure.
 
 Do not log credentials, tokens, or secrets — log their identifiers instead.
 
@@ -53,13 +65,15 @@ it's the last chance to record what went wrong.
 
 | Level | When to use |
 |---|---|
-| `LogDebug` | Normal successful flow — useful during development, silent in production |
-| `LogInformation` | Significant state transitions that completed successfully |
-| `LogWarning` | Expected-but-notable conditions: provider returned an error, session not found, replay attempt detected |
-| `LogError` | Unexpected failures: external call threw, secret retrieval failed, token validation failed |
+| `LogDebug` | Normal flow — reads, pre-call context, routine checks. Useful during development, silent in production. |
+| `LogInformation` | Something was **written or changed**: a record created/updated/deleted, a bulk operation completed (with count). |
+| `LogWarning` | Expected-but-notable conditions: provider returned an error, session not found, replay attempt detected. |
+| `LogError` | Unexpected failures: external call threw, secret retrieval failed, token validation failed. |
 
-A `Warning` means "this is noteworthy but the system handled it." An `Error` means
-"something broke that shouldn't have."
+The rule of thumb: reads are Debug, writes are Info. A completed write is a meaningful
+event in the production timeline; a completed read is routine. A `Warning` means "the
+system handled it but something is worth noting." An `Error` means "something broke that
+shouldn't have."
 
 ---
 
@@ -130,9 +144,10 @@ the end.
 ### Quick reference
 
 ```
-Before external call (Debug)     → "{Verb-ing} {what} for {entity}"
+Before write call (Debug)        → "{Verb-ing} {what} for {entity}"
+Bulk read summary (Info)         → "{Verb-ing} {Count} {Type} items [for {entity}]"
 External call failure (Error)    → "{Operation noun} failed for {entity}"
-State transition (Info/Debug)    → "{Subject} {past-tense-verb} for {entity}"
+Write state transition (Info)    → "{Subject} {past-tense-verb} for {entity}"
 Notable condition (Warning)      → "{Event noun phrase} on {entity}"
 Unexpected error (Error)         → "Unexpected error {verb-ing} {context}"
 Placeholder names                → PascalCase: {Provider}, {LoginId}, {AuthorizationId}
@@ -222,6 +237,10 @@ When asked to add logging to a service file:
 1. Read the file to understand its structure and dependencies.
 2. Identify which of the three categories (external calls, state transitions, swallowed
    exceptions) apply and where.
-3. Add `ILogger<ClassName>` to the constructor if not already present (concrete class name, not the interface).
-4. Add log statements at the identified points — no more.
-5. Summarize what was logged and why, so the user can verify the judgment calls.
+3. For each external call, decide: is it a read or a write?
+   - **Write**: add a pre-call Debug and a post-call Info on success.
+   - **Bulk read**: add a post-call Info with the result count and key parameters. Skip the pre-call log.
+   - **Single read**: skip unless the result is genuinely uncertain (nullable, may not exist). If logging, use Debug.
+4. Add `ILogger<ClassName>` to the constructor if not already present (concrete class name, not the interface).
+5. Add log statements at the identified points — no more.
+6. Summarize what was logged and why, so the user can verify the judgment calls.
